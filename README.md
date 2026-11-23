@@ -4,7 +4,7 @@ A self-contained performance drum machine for norns. The ZOIA Euroburo runs the
 master clock and turns MIDI into CV for a Dreadbox Alecto. The nanoPAD2 (and an
 optional 16x8 grid) plays everything.
 
-Full manual: [scidrum-manual.pdf](scidrum-manual.pdf)
+Full manual: [scidrum-manual.pdf](scidrum-manual.pdf) · ZOIA button cheatsheet: [zoia-cheatsheet.pdf](zoia-cheatsheet.pdf)
 
 ## What it does
 
