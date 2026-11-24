@@ -17,7 +17,7 @@
 -- E1: tempo req (K1: swing)
 -- E2/E3: depend on mode
 --
--- v1.1
+-- v1.2
 
 local NUM_STEPS = 16
 local NUM_PATTERNS = 8
@@ -56,6 +56,7 @@ local perf = {
   half = false, double = false, reverse = false, glitch = false,
   fill = false, drop = false, tapestop = false,
   mute1 = false, mute2 = false, beatrep = false,
+  ratchet = 0, -- >0 while a ratchet hold is down
 }
 local rolls = {}      -- clock ids for held rolls (PLAY pads 3/4)
 local repeat_id = nil -- clock id for MIDI beat repeat
@@ -233,6 +234,9 @@ local function advance()
     -- mod lane (CV4) p-locks: voice 2 overrides voice 1
     if s.mod and s.mod >= 0 then hits.mod = s.mod end
 
+    if hit and perf.ratchet > 0 and s.rat < perf.ratchet then
+      s = {on = s.on, acc = s.acc, prob = s.prob, rat = perf.ratchet, mod = s.mod}
+    end
     if hit and not voice_silenced(v) then hits[v] = s end
   end
 
@@ -401,11 +405,27 @@ local PERF_NAMES = {
   "half", "double", "reverse", "glitch",
   "fill", "mute 1", "mute 2", "DROP",
 }
+local RATCHET_N = {2, 3, 4, 6}
 local perf_held = {}
+
+local function rpt_is_ratchet() return params:get("rpt_mode") == 2 end
+
+local function perf_name(i)
+  if i <= 4 and rpt_is_ratchet() then return "ratchet x" .. RATCHET_N[i] end
+  return PERF_NAMES[i]
+end
+
+local function release_ratchet()
+  -- fall back to whichever ratchet hold is still down
+  perf.ratchet = 0
+  if not rpt_is_ratchet() then return end
+  for j = 1, 4 do if perf_held[j] then perf.ratchet = math.max(perf.ratchet, RATCHET_N[j]) end end
+end
 
 local function perf_down(i)
   perf_held[i] = true
-  if i <= 4 then start_beat_repeat(({1, 1 / 2, 1 / 4, 1 / 8})[i])
+  if i <= 4 and rpt_is_ratchet() then perf.ratchet = math.max(perf.ratchet, RATCHET_N[i])
+  elseif i <= 4 then start_beat_repeat(({1, 1 / 2, 1 / 4, 1 / 8})[i])
   elseif i <= 7 then audio_repeat(({1, 1 / 2, 1 / 4})[i - 4])
   elseif i == 8 then perf.tapestop = true; tape_stop()
   elseif i == 9 then perf.half = true
@@ -417,12 +437,14 @@ local function perf_down(i)
   elseif i == 15 then perf.mute2 = true
   elseif i == 16 then perf.drop = true
   end
-  notify(PERF_NAMES[i])
+  notify(perf_name(i))
 end
 
 local function perf_up(i)
   perf_held[i] = nil
-  if i <= 4 then stop_beat_repeat()
+  if i <= 4 then
+    release_ratchet()
+    stop_beat_repeat()
   elseif i <= 7 then audio_release()
   elseif i == 8 then perf.tapestop = false; audio_release()
   elseif i == 9 then perf.half = false
@@ -493,8 +515,17 @@ local function set_mode(m)
   mode = m
 end
 
+-- what the Y axis drives (index matches the "y_target" param)
+local Y_TARGETS = {"y_out_cc", "lfo_rate_cc", "lfo_cc", "wet_cc"}
+
 local function xy_in(axis, val) -- val 0..127
-  if axis == "x" then zoia_cc("x_out_cc", val) else zoia_cc("y_out_cc", val) end
+  -- "from center": resting in the middle = 0, either edge = 127.
+  -- use this with X-Y HOLD off so letting go snaps back to clean.
+  if params:get(axis .. "_shape") == 2 then
+    val = math.abs(val - 63.5) / 63.5 * 127
+  end
+  if axis == "x" then zoia_cc("x_out_cc", val)
+  else zoia_cc(Y_TARGETS[params:get("y_target")], val) end
 end
 
 local function pad_event(data)
@@ -705,18 +736,23 @@ local function add_params()
   params:add_number("wet_cc", "delay send CC", 0, 127, 24)
   params:add_number("lfo_rate_cc", "LFO rate CC", 0, 127, 25)
 
-  params:add_group("xy pad in", 3)
+  params:add_group("xy pad in", 6)
   params:add_option("x_src", "X axis sends", {"pitchbend", "cc"}, 1)
   params:add_number("x_in_cc", "X cc (if cc)", 0, 127, 16)
   params:add_number("y_in_cc", "Y cc", 0, 127, 1)
+  params:add_option("y_target", "Y axis drives", {"decimate", "LFO rate", "LFO depth", "delay send"}, 1)
+  params:add_option("x_shape", "X response", {"raw", "from center"}, 1)
+  params:add_option("y_shape", "Y response", {"raw", "from center"}, 1)
 
-  params:add_group("feel", 6)
+  params:add_group("feel", 7)
   params:add_number("gate_ms", "trigger length ms", 1, 50, 10)
   params:add_number("base_vel", "normal velocity", 1, 127, 80)
   params:add_number("acc_vel", "accent velocity", 1, 127, 127)
   params:add_number("swing", "swing %", 0, 50, 0)
   params:add_option("roll_rate", "roll rate", {"1/8", "1/16", "1/32"}, 2)
   params:add_number("mod_default", "mod lane resting", 0, 127, 64)
+  params:add_option("rpt_mode", "perf holds 1-4", {"beat repeat", "ratchet x2/3/4/6"}, 1)
+  params:set_action("rpt_mode", function() release_all() end)
 
   params:add_group("audio", 2)
   params:add_control("dry", "dry level", controlspec.new(0, 1, "lin", 0.01, 1))
