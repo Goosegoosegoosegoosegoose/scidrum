@@ -14,7 +14,9 @@ Full manual: [scidrum-manual.pdf](scidrum-manual.pdf) · ZOIA button cheatsheet:
 - 8 patterns that switch on the next bar, with copy and an undo for clear
 - Live recording from the pads, rolls and mutes
 - PERF moves you hold down: MIDI beat repeat, audio repeat, tape stop, half and double time, reverse, glitch, fill and DROP
-- XY pad controls the ZOIA bitcrusher and decimator
+- XY pad controls the ZOIA bitcrusher and decimator. Y can drive LFO rate, LFO depth or delay send instead
+- Spring-back option for the XY pad: with "from center" set, letting go returns to clean
+- PERF holds 1–4 can be ratchets (×2/×3/×4/×6 on every hit while held) instead of beat repeat
 - Follows the ZOIA's MIDI clock. Set tempo by tap (ZOIA button or pad 7) or with E1
 
 ## Install
@@ -67,6 +69,16 @@ The manual walks through building the ZOIA patch one module at a time.
 | Crush / decimate / delay send / LFO rate | 16 | CC 22 / 23 / 24 / 25 |
 
 You can change all of these in PARAMS.
+
+## New in v1.2
+
+| PARAMS setting | What it does |
+|---|---|
+| feel → perf holds 1-4 | `beat repeat` (as before) or `ratchet x2/3/4/6`: while held, every step that plays is repeated that many times inside the step, still following the pattern, mutes and probability |
+| xy pad in → Y axis drives | decimate (default), LFO rate, LFO depth or delay send |
+| xy pad in → X / Y response | `raw` (as before, for X-Y HOLD on) or `from center`: the middle is 0 and either edge is full. Turn the nanoPAD2's X-Y HOLD **off** with this so letting go snaps back to clean |
+
+The PDF manual still describes v1.1.
 
 ## Part of S.C.I.E.N.C.E.
 
